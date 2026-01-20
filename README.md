@@ -4,7 +4,7 @@
 
 # Pi Review Loop
 
-Automated code review loop for pi. Repeatedly prompts the agent to review its own work until it confirms no issues remain.
+Automated code review loop for [Pi coding agent](https://buildwithpi.ai/). Repeatedly prompts the agent to review its own work until it confirms no issues remain.
 
 ```
 > implement the plan
@@ -24,11 +24,7 @@ Review mode (2/7)
 Review mode ended: no issues found  ← auto-exits
 ```
 
-## Why
-
-Agents make mistakes. They miss edge cases, introduce typos, forget error handling. Asking them to review their own code catches a surprising number of issues, but you have to remember to ask, and then ask again if they found something.
-
-Reviewer Loop automates this:
+Agents make mistakes. They miss edge cases, introduce typos, forget error handling. Asking them to review their own code catches a surprising number of issues, but you have to remember to ask, and then ask again if they found something. This automates that:
 
 **Auto-Trigger** - Detects phrases like "implement the plan" or the `/double-check` template. No need to manually activate.
 
@@ -83,6 +79,8 @@ These prompts are designed to work with the review loop:
 - They include the "fresh eyes" phrase that auto-triggers the loop
 - They instruct the agent to respond with "No issues found." when done (triggering exit)
 - They tell the agent to end with "Fixed [N] issue(s). Ready for another review." when issues are fixed (continuing the loop)
+
+You can customize or replace these prompts, change trigger patterns, or use your own entirely. See [Configuration](#configuration). The agent can also start/stop the loop on demand via the `review_loop` tool. See [Tool API](#tool-api).
 
 **Manual installation** (if cloning instead of npm):
 
@@ -243,7 +241,7 @@ The loop exits when:
 
 ## Tool API
 
-The `review_loop` tool lets the agent programmatically control review mode:
+The `review_loop` tool lets the agent control review mode directly:
 
 ```typescript
 // Check status (default)
@@ -325,8 +323,6 @@ pi-review-loop/
 
 ## Credits
 
-Inspired by and built on ideas from:
-
-- **[Ralph Wiggum Loop](https://ghuntley.com/ralph/)** by [@GeoffreyHuntley](https://x.com/GeoffreyHuntley) - Loosely based on the "Ralph" loop
+- **[Ralph Wiggum Loop](https://ghuntley.com/ralph/)** by [@GeoffreyHuntley](https://x.com/GeoffreyHuntley)
 - **["Fresh eyes" review prompt](https://x.com/doodlestein/status/1956228999945806049)** by [@doodlestein](https://x.com/doodlestein)
-- **[pi](https://github.com/badlogic/pi-mono/)** by [@badlogicgames](https://x.com/badlogicgames) — The agent framework powering all of this
+- **[pi](https://github.com/badlogic/pi-mono/)** by [@badlogicgames](https://x.com/badlogicgames)
