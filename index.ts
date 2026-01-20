@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { Type } from "@sinclair/typebox";
 import { loadSettings, getReviewPrompt, type ReviewerLoopSettings } from "./settings.js";
 
 export default function (pi: ExtensionAPI) {
@@ -9,11 +10,11 @@ export default function (pi: ExtensionAPI) {
   function updateStatus(ctx: ExtensionContext) {
     if (reviewModeActive) {
       ctx.ui.setStatus(
-        "reviewer-loop",
+        "review-loop",
         `Review mode (${currentIteration}/${settings.maxIterations})`
       );
     } else {
-      ctx.ui.setStatus("reviewer-loop", undefined);
+      ctx.ui.setStatus("review-loop", undefined);
     }
   }
 
@@ -156,6 +157,124 @@ export default function (pi: ExtensionAPI) {
           "info"
         );
       }
+    },
+  });
+
+  pi.registerTool({
+    name: "review_loop",
+    description:
+      "Control the automated code review loop. Start/stop review mode or check status. When started, the loop repeatedly prompts for code review until 'No issues found' or max iterations reached.",
+    parameters: Type.Object({
+      start: Type.Optional(
+        Type.Boolean({
+          description: "Start review mode and send the review prompt",
+        })
+      ),
+      stop: Type.Optional(
+        Type.Boolean({
+          description: "Stop review mode",
+        })
+      ),
+      maxIterations: Type.Optional(
+        Type.Number({
+          description: "Set max iterations (can be combined with start)",
+          minimum: 1,
+        })
+      ),
+    }),
+
+    async execute(_toolCallId, params, _onUpdate, ctx) {
+      // Update maxIterations if provided
+      if (typeof params.maxIterations === "number" && params.maxIterations >= 1) {
+        settings.maxIterations = params.maxIterations;
+      }
+
+      // Mode: start > stop > status
+      if (params.start) {
+        if (reviewModeActive) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  active: true,
+                  currentIteration,
+                  maxIterations: settings.maxIterations,
+                  message: "Review mode is already active",
+                }),
+              },
+            ],
+          };
+        }
+
+        enterReviewMode(ctx);
+        pi.sendUserMessage(getReviewPrompt(settings.reviewPromptConfig));
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                active: true,
+                currentIteration,
+                maxIterations: settings.maxIterations,
+                message: "Review mode started. Review prompt sent.",
+              }),
+            },
+          ],
+        };
+      }
+
+      if (params.stop) {
+        if (!reviewModeActive) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  active: false,
+                  currentIteration: 0,
+                  maxIterations: settings.maxIterations,
+                  message: "Review mode is not active",
+                }),
+              },
+            ],
+          };
+        }
+
+        exitReviewMode(ctx, "stopped by agent");
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                active: false,
+                currentIteration: 0,
+                maxIterations: settings.maxIterations,
+                message: "Review mode stopped",
+              }),
+            },
+          ],
+        };
+      }
+
+      // Default: status
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              active: reviewModeActive,
+              currentIteration,
+              maxIterations: settings.maxIterations,
+              message: reviewModeActive
+                ? `Review mode active: iteration ${currentIteration}/${settings.maxIterations}`
+                : "Review mode inactive",
+            }),
+          },
+        ],
+      };
     },
   });
 }

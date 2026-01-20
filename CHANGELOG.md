@@ -1,6 +1,25 @@
 # Changelog
 
-## [0.1.0] - 2025-01-17
+## [0.1.1] - 2026-01-20
+
+### Added
+
+- `review_loop` tool for programmatic control by the agent (start, stop, status, configure)
+- Bundled prompt templates (`/double-check`, `/double-check-plan`) auto-installed to `~/.pi/agent/prompts/`
+- npm package with automatic installation to `~/.pi/agent/extensions/`
+- Banner image (Ralph Wiggum inspired)
+- Credits section in README
+- MIT License
+
+### Fixed
+
+- Exit detection bug: "No issues found" was not triggering exit because the issues-fixed pattern `/issues?\s+(i\s+)?(found|identified|discovered)/i` matched "issues found" within the phrase. Added negative lookbehind `(?<!no\s)` to prevent this false positive.
+
+### Changed
+
+- README rewritten with improved structure, install instructions, and pattern configuration guidance
+
+## [0.1.0] - 2026-01-20
 
 Initial release with full configuration support.
 
