@@ -7,9 +7,7 @@
 Automated code review loop for [Pi coding agent](https://buildwithpi.ai/). Repeatedly prompts the agent to review its own work until it confirms no issues remain.
 
 ```
-> implement the plan
-
-[agent implements...]
+> /review-start
 
 Review mode (1/7)  ← status appears in footer
 
@@ -26,7 +24,7 @@ Review mode ended: no issues found  ← auto-exits
 
 Agents make mistakes. They miss edge cases, introduce typos, forget error handling. Asking them to review their own code catches a surprising number of issues, but you have to remember to ask, and then ask again if they found something. This automates that:
 
-**Auto-Trigger** - Detects phrases like "implement the plan" or the `/double-check` template. No need to manually activate.
+**Auto-Trigger** - Optionally detects phrases like "implement the plan" or the `/double-check` template. Disabled by default; enable with `/review-auto on` or in settings.
 
 **Persistent Loop** - After each response, sends a review prompt. If the agent found and fixed issues, it loops again. Only exits when the agent genuinely finds nothing.
 
@@ -38,9 +36,9 @@ Agents make mistakes. They miss edge cases, introduce typos, forget error handli
 
 The loop shines in two scenarios:
 
-**Before implementing** — You've got a plan doc and want to sanity-check it against the actual codebase. Run `/double-check-plan` and let the agent compare the plan to what exists. It'll catch things like outdated assumptions, conflicting patterns, or unnecessary complexity. The funny thing is, it rarely finds everything on the first pass. Second pass catches different issues. Third pass, more still. That's the whole point of the loop.
+**Before implementing** — You've got a plan doc and want to sanity-check it against the actual codebase. Run `/review-start` and let the agent compare the plan to what exists. It'll catch things like outdated assumptions, conflicting patterns, or unnecessary complexity. The funny thing is, it rarely finds everything on the first pass. Second pass catches different issues. Third pass, more still. That's the whole point of the loop.
 
-**After implementing** — You just finished building a feature and want to catch bugs before calling it done. Run `/double-check` and the agent reviews its own work with fresh eyes. Typos, missed edge cases, forgotten error handling — it finds stuff you'd miss staring at the same code. Again, multiple passes tend to surface different issues each time.
+**After implementing** — You just finished building a feature and want to catch bugs before calling it done. Run `/review-start` and the agent reviews its own work with fresh eyes. Typos, missed edge cases, forgotten error handling — it finds stuff you'd miss staring at the same code. Again, multiple passes tend to surface different issues each time.
 
 The pattern is the same: keep reviewing until there's genuinely nothing left to find. The loop handles the "ask again" part automatically. You'll see `Review mode (2/7)` in the footer so you know it's working and how many passes it's done.
 
@@ -76,9 +74,11 @@ The package includes two prompt templates that are automatically installed to `~
 | `double-check-plan.md` | `/double-check-plan` | Review implementation plan against codebase |
 
 These prompts are designed to work with the review loop:
-- They include the "fresh eyes" phrase that auto-triggers the loop
 - They instruct the agent to respond with "No issues found." when done (triggering exit)
 - They tell the agent to end with "Fixed [N] issue(s). Ready for another review." when issues are fixed (continuing the loop)
+- They include the "fresh eyes" phrase that triggers the loop when `autoTrigger` is enabled
+
+**Recommended workflow:** Use `/review-start` to activate review mode, which sends the review prompt automatically. Alternatively, enable auto-trigger (`/review-auto on`) and the `/double-check` template will activate the loop.
 
 You can customize or replace these prompts, change trigger patterns, or use your own entirely. See [Configuration](#configuration). The agent can also start/stop the loop on demand via the `review_loop` tool. See [Tool API](#tool-api).
 
@@ -90,9 +90,33 @@ cp ~/.pi/agent/extensions/pi-review-loop/prompts/*.md ~/.pi/agent/prompts/
 
 ## Quick Start
 
-### Automatic Activation
+### Manual Activation
 
-Just use trigger phrases naturally:
+```
+/review-start
+```
+
+Activates review mode and immediately sends the review prompt.
+
+### Automatic Activation (Optional)
+
+Auto-trigger is disabled by default. Enable it for the current session:
+
+```
+/review-auto on
+```
+
+Or permanently in `~/.pi/agent/settings.json`:
+
+```json
+{
+  "reviewerLoop": {
+    "autoTrigger": true
+  }
+}
+```
+
+With auto-trigger enabled, trigger phrases activate review mode:
 
 ```
 > implement the plan
@@ -101,14 +125,6 @@ Just use trigger phrases naturally:
 ```
 
 Or use the `/double-check` prompt template.
-
-### Manual Activation
-
-```
-/review-start
-```
-
-Activates review mode and immediately sends the review prompt.
 
 ### Check Status
 
@@ -142,6 +158,7 @@ Configure in `~/.pi/agent/settings.json`. Works out of the box, but everything i
 {
   "reviewerLoop": {
     "maxIterations": 7,
+    "autoTrigger": true,
     "reviewPrompt": "template:double-check",
     "triggerPatterns": {
       "mode": "extend",
@@ -164,8 +181,9 @@ Configure in `~/.pi/agent/settings.json`. Works out of the box, but everything i
 | Option | Description |
 |--------|-------------|
 | `maxIterations` | Max review prompts before auto-exit (default: 7) |
+| `autoTrigger` | Enable keyword-based auto-trigger (default: false) |
 | `reviewPrompt` | The prompt to send each iteration |
-| `triggerPatterns` | What activates review mode |
+| `triggerPatterns` | What activates review mode (requires autoTrigger: true) |
 | `exitPatterns` | What indicates "review complete" |
 | `issuesFixedPatterns` | What indicates issues were fixed (prevents false exits) |
 
@@ -226,7 +244,7 @@ The loop exits when:
 
 1. **Exit phrase without fixes** - Agent says "no issues" and didn't fix anything
 2. **Max iterations** - Safety limit reached (default: 7)
-3. **User interrupts** - You type something that isn't a trigger
+3. **User interrupts** - You type something (only trigger phrases are ignored, and only when auto-trigger is on)
 4. **Manual exit** - `/review-exit` command
 5. **Abort** - Press ESC or agent response is empty
 
@@ -237,6 +255,7 @@ The loop exits when:
 | `/review-start` | Activate and send review prompt immediately |
 | `/review-exit` | Exit review mode |
 | `/review-max <n>` | Set max iterations (session only) |
+| `/review-auto [on\|off]` | Toggle auto-trigger from keywords (session only) |
 | `/review-status` | Show current state |
 
 ## Tool API
@@ -258,6 +277,10 @@ review_loop({ stop: true })
 
 // Just update max iterations
 review_loop({ maxIterations: 10 })
+
+// Enable/disable auto-trigger
+review_loop({ autoTrigger: true })
+review_loop({ autoTrigger: false })
 ```
 
 **Returns:**
@@ -266,6 +289,7 @@ review_loop({ maxIterations: 10 })
   "active": true,
   "currentIteration": 2,
   "maxIterations": 7,
+  "autoTrigger": false,
   "message": "Review mode active: iteration 2/7"
 }
 ```
@@ -277,7 +301,7 @@ review_loop({ maxIterations: 10 })
 ```
 input event
     ↓
-matches trigger? → enter review mode
+autoTrigger on + matches trigger? → enter review mode
     ↓
 agent responds
     ↓
@@ -292,14 +316,14 @@ otherwise → exit (max reached)
 
 **Events used:**
 - `session_start` - Reload settings
-- `input` - Detect triggers, handle interrupts
-- `before_agent_start` - Check expanded prompts for triggers
+- `input` - Detect triggers (if autoTrigger enabled), handle interrupts
+- `before_agent_start` - Check expanded prompts for triggers (if autoTrigger enabled)
 - `agent_end` - Analyze response, decide to loop or exit
 
 ## Limitations
 
 - **User templates only** - `template:name` loads from `~/.pi/agent/prompts/`, not project templates
-- **Session-scoped /review-max** - Doesn't persist across sessions
+- **Session-scoped settings** - `/review-max` and `/review-auto` don't persist across sessions (use settings.json for persistence)
 - **Pattern failures are silent** - Invalid regex patterns are skipped without error
 
 ## File Structure

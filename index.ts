@@ -39,7 +39,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("input", async (event, ctx) => {
     if (!ctx.hasUI) return { action: "continue" as const };
 
-    const isTrigger = settings.triggerPatterns.some((p) => p.test(event.text));
+    const isTrigger = settings.autoTrigger && settings.triggerPatterns.some((p) => p.test(event.text));
 
     if (reviewModeActive && event.source === "interactive" && !isTrigger) {
       exitReviewMode(ctx, "user interrupted");
@@ -56,6 +56,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, ctx) => {
     if (!ctx.hasUI) return;
     if (reviewModeActive) return;
+    if (!settings.autoTrigger) return;
 
     const isTrigger = settings.triggerPatterns.some((p) => p.test(event.prompt));
     if (isTrigger) {
@@ -153,17 +154,38 @@ export default function (pi: ExtensionAPI) {
         );
       } else {
         ctx.ui.notify(
-          `Review mode inactive (max: ${settings.maxIterations})`,
+          `Review mode inactive (max: ${settings.maxIterations}, auto-trigger: ${settings.autoTrigger ? "on" : "off"})`,
           "info"
         );
       }
     },
   });
 
+  pi.registerCommand("review-auto", {
+    description: "Toggle auto-trigger from keywords (off by default)",
+    handler: async (args, ctx) => {
+      const arg = args.trim().toLowerCase();
+      if (arg === "on" || arg === "true" || arg === "1") {
+        settings.autoTrigger = true;
+      } else if (arg === "off" || arg === "false" || arg === "0") {
+        settings.autoTrigger = false;
+      } else if (arg === "") {
+        settings.autoTrigger = !settings.autoTrigger;
+      } else {
+        ctx.ui.notify("Usage: /review-auto [on|off]", "error");
+        return;
+      }
+      ctx.ui.notify(
+        `Auto-trigger ${settings.autoTrigger ? "enabled" : "disabled"}`,
+        "info"
+      );
+    },
+  });
+
   pi.registerTool({
     name: "review_loop",
     description:
-      "Control the automated code review loop. Start/stop review mode or check status. When started, the loop repeatedly prompts for code review until 'No issues found' or max iterations reached.",
+      "Control the automated code review loop. Start/stop review mode, toggle auto-trigger, or check status. When started, the loop repeatedly prompts for code review until 'No issues found' or max iterations reached.",
     parameters: Type.Object({
       start: Type.Optional(
         Type.Boolean({
@@ -173,6 +195,11 @@ export default function (pi: ExtensionAPI) {
       stop: Type.Optional(
         Type.Boolean({
           description: "Stop review mode",
+        })
+      ),
+      autoTrigger: Type.Optional(
+        Type.Boolean({
+          description: "Enable/disable auto-trigger from keywords (disabled by default)",
         })
       ),
       maxIterations: Type.Optional(
@@ -189,6 +216,15 @@ export default function (pi: ExtensionAPI) {
         settings.maxIterations = params.maxIterations;
       }
 
+      // Update autoTrigger if provided
+      if (typeof params.autoTrigger === "boolean") {
+        settings.autoTrigger = params.autoTrigger;
+        ctx.ui.notify(
+          `Auto-trigger ${settings.autoTrigger ? "enabled" : "disabled"}`,
+          "info"
+        );
+      }
+
       // Mode: start > stop > status
       if (params.start) {
         if (reviewModeActive) {
@@ -200,6 +236,7 @@ export default function (pi: ExtensionAPI) {
                   active: true,
                   currentIteration,
                   maxIterations: settings.maxIterations,
+                  autoTrigger: settings.autoTrigger,
                   message: "Review mode is already active",
                 }),
               },
@@ -218,6 +255,7 @@ export default function (pi: ExtensionAPI) {
                 active: true,
                 currentIteration,
                 maxIterations: settings.maxIterations,
+                autoTrigger: settings.autoTrigger,
                 message: "Review mode started. Review prompt sent.",
               }),
             },
@@ -235,6 +273,7 @@ export default function (pi: ExtensionAPI) {
                   active: false,
                   currentIteration: 0,
                   maxIterations: settings.maxIterations,
+                  autoTrigger: settings.autoTrigger,
                   message: "Review mode is not active",
                 }),
               },
@@ -252,6 +291,7 @@ export default function (pi: ExtensionAPI) {
                 active: false,
                 currentIteration: 0,
                 maxIterations: settings.maxIterations,
+                autoTrigger: settings.autoTrigger,
                 message: "Review mode stopped",
               }),
             },
@@ -268,6 +308,7 @@ export default function (pi: ExtensionAPI) {
               active: reviewModeActive,
               currentIteration,
               maxIterations: settings.maxIterations,
+              autoTrigger: settings.autoTrigger,
               message: reviewModeActive
                 ? `Review mode active: iteration ${currentIteration}/${settings.maxIterations}`
                 : "Review mode inactive",

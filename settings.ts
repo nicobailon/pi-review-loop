@@ -60,6 +60,7 @@ export interface ReviewPromptConfig {
 export interface ReviewerLoopSettingsRaw {
   maxIterations?: number;
   reviewPrompt?: string;
+  autoTrigger?: boolean;
   triggerPatterns?: PatternConfig;
   exitPatterns?: PatternConfig;
   issuesFixedPatterns?: PatternConfig;
@@ -68,6 +69,7 @@ export interface ReviewerLoopSettingsRaw {
 export interface ReviewerLoopSettings {
   maxIterations: number;
   reviewPromptConfig: ReviewPromptConfig;
+  autoTrigger: boolean;
   triggerPatterns: RegExp[];
   exitPatterns: RegExp[];
   issuesFixedPatterns: RegExp[];
@@ -201,6 +203,7 @@ export function loadSettings(): ReviewerLoopSettings {
         ? raw.maxIterations
         : DEFAULT_MAX_ITERATIONS,
     reviewPromptConfig: parseReviewPromptConfig(raw.reviewPrompt),
+    autoTrigger: raw.autoTrigger === true,
     triggerPatterns: loadPatterns(raw.triggerPatterns, DEFAULT_TRIGGER_PATTERNS),
     exitPatterns: loadPatterns(raw.exitPatterns, DEFAULT_EXIT_PATTERNS),
     issuesFixedPatterns: loadPatterns(

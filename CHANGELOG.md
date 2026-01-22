@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0] - 2026-01-21
+
+### Changed
+
+- **Breaking**: Auto-trigger from keywords is now disabled by default. Use `/review-auto on` or set `autoTrigger: true` in settings.json to enable.
+- README updated to reflect `/review-start` as the primary workflow
+
+### Added
+
+- `autoTrigger` setting in `reviewerLoop` config (default: false)
+- `/review-auto [on|off]` command to toggle auto-trigger for current session
+- `autoTrigger` parameter in `review_loop` tool for programmatic control
+- `autoTrigger` field in tool response JSON
+
 ## [0.1.1] - 2026-01-20
 
 ### Added
