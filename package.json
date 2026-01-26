@@ -1,6 +1,6 @@
 {
   "name": "pi-review-loop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Automated code review loop extension for pi coding agent",
   "scripts": {
     "postinstall": "node scripts/install.js",
@@ -33,6 +33,8 @@
   },
   "homepage": "https://github.com/nicobailon/pi-review-loop#readme",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }
