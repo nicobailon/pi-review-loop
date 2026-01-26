@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-01-26
+
 ### Changed
 - Added `pi` manifest to package.json for pi v0.50.0 package system compliance
 - Added `pi-package` keyword for npm discoverability
