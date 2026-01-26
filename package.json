@@ -14,6 +14,7 @@
     "prompts/"
   ],
   "keywords": [
+    "pi-package",
     "pi",
     "pi-coding-agent",
     "extension",
@@ -30,5 +31,8 @@
   "bugs": {
     "url": "https://github.com/nicobailon/pi-review-loop/issues"
   },
-  "homepage": "https://github.com/nicobailon/pi-review-loop#readme"
+  "homepage": "https://github.com/nicobailon/pi-review-loop#readme",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
 }
