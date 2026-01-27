@@ -44,18 +44,8 @@ The pattern is the same: keep reviewing until there's genuinely nothing left to 
 
 ## Install
 
-**npm** (recommended):
-
 ```bash
-npm install -g pi-review-loop
-```
-
-The extension is automatically copied to `~/.pi/agent/extensions/pi-review-loop/`.
-
-**Or clone directly:**
-
-```bash
-git clone https://github.com/nicobailon/pi-review-loop ~/.pi/agent/extensions/pi-review-loop
+pi install npm:pi-review-loop
 ```
 
 Restart pi to load the extension. On activation, you'll see status in the footer:
