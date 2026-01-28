@@ -28,10 +28,15 @@ export default function (pi: ExtensionAPI) {
   }
 
   function parseCustomText(args: string): string {
-    // Match quoted strings: "text" or 'text' (must use matching quotes)
-    const match = args.match(/^"(.+)"$/s) || args.match(/^'(.+)'$/s) ||
-                  args.match(/"(.+?)"/s) || args.match(/'(.+?)'/s);
-    return match ? match[1].trim() : "";
+    const trimmed = args.trim();
+    if (!trimmed) return "";
+    
+    // Try quoted strings first: "text" or 'text'
+    const match = trimmed.match(/^"(.+)"$/s) || trimmed.match(/^'(.+)'$/s) ||
+                  trimmed.match(/"(.+?)"/s) || trimmed.match(/'(.+?)'/s);
+    
+    // If no quotes found, use the entire text as focus
+    return match ? match[1].trim() : trimmed;
   }
 
   function exitReviewMode(ctx: ExtensionContext, reason: string) {
@@ -126,7 +131,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("review-start", {
-    description: "Activate review loop and send review prompt immediately. Optional: add custom focus with quotes.",
+    description: "Activate review loop and send review prompt. Optional: add custom focus text.",
     handler: async (args, ctx) => {
       if (reviewModeActive) {
         ctx.ui.notify("Review mode is already active", "info");
@@ -139,7 +144,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("review-plan", {
-    description: "Activate review loop for plans/specs/PRDs. Optional: add custom focus with quotes.",
+    description: "Activate review loop for plans/specs/PRDs. Optional: add custom focus text.",
     handler: async (args, ctx) => {
       if (reviewModeActive) {
         ctx.ui.notify("Review mode is already active", "info");
@@ -193,42 +198,42 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("review-auto", {
-    description: "Toggle auto-trigger, or start review with custom focus: /review-auto \"focus on X\"",
+    description: "Toggle auto-trigger, or start review with custom focus: /review-auto focus on X",
     handler: async (args, ctx) => {
       const arg = args.trim();
       const argLower = arg.toLowerCase();
       
-      // Check for quoted custom text first
-      const customText = parseCustomText(arg);
-      if (customText) {
-        // Custom text provided: enable auto-trigger and start review with custom focus
+      // Check for standard on/off/toggle keywords first
+      if (argLower === "on" || argLower === "true" || argLower === "1") {
         settings.autoTrigger = true;
-        customPromptSuffix = customText;
-        if (reviewModeActive) {
-          ctx.ui.notify(`Auto-trigger enabled, focus updated for next iteration`, "info");
-        } else {
-          enterReviewMode(ctx);
-          pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
-          ctx.ui.notify(`Auto-trigger enabled, review started with custom focus`, "info");
-        }
+        ctx.ui.notify(`Auto-trigger enabled`, "info");
+        return;
+      }
+      if (argLower === "off" || argLower === "false" || argLower === "0") {
+        settings.autoTrigger = false;
+        ctx.ui.notify(`Auto-trigger disabled`, "info");
+        return;
+      }
+      if (arg === "") {
+        settings.autoTrigger = !settings.autoTrigger;
+        ctx.ui.notify(
+          `Auto-trigger ${settings.autoTrigger ? "enabled" : "disabled"}`,
+          "info"
+        );
         return;
       }
       
-      // Standard on/off/toggle behavior
-      if (argLower === "on" || argLower === "true" || argLower === "1") {
-        settings.autoTrigger = true;
-      } else if (argLower === "off" || argLower === "false" || argLower === "0") {
-        settings.autoTrigger = false;
-      } else if (arg === "") {
-        settings.autoTrigger = !settings.autoTrigger;
+      // Anything else is treated as custom focus text
+      const customText = parseCustomText(arg);
+      settings.autoTrigger = true;
+      customPromptSuffix = customText;
+      if (reviewModeActive) {
+        ctx.ui.notify(`Auto-trigger enabled, focus updated for next iteration`, "info");
       } else {
-        ctx.ui.notify("Usage: /review-auto [on|off] or /review-auto \"custom focus\"", "error");
-        return;
+        enterReviewMode(ctx);
+        pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
+        ctx.ui.notify(`Auto-trigger enabled, review started with custom focus`, "info");
       }
-      ctx.ui.notify(
-        `Auto-trigger ${settings.autoTrigger ? "enabled" : "disabled"}`,
-        "info"
-      );
     },
   });
 

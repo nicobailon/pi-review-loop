@@ -243,13 +243,13 @@ The loop exits when:
 | Command | Description |
 |---------|-------------|
 | `/review-start` | Activate and send review prompt immediately |
-| `/review-start "focus on X"` | Start review with custom focus appended to prompt |
+| `/review-start <focus>` | Start review with custom focus (quotes optional) |
 | `/review-plan` | Activate and review plans/specs/PRDs (uses `double-check-plan` template) |
-| `/review-plan "focus on X"` | Review plan with custom focus appended to prompt |
+| `/review-plan <focus>` | Review plan with custom focus (quotes optional) |
 | `/review-exit` | Exit review mode |
 | `/review-max <n>` | Set max iterations (session only) |
 | `/review-auto [on\|off]` | Toggle auto-trigger from keywords (session only) |
-| `/review-auto "focus on X"` | Enable auto-trigger AND start review with custom focus |
+| `/review-auto <focus>` | Enable auto-trigger AND start review with custom focus |
 | `/review-status` | Show current state |
 
 ## Tool API

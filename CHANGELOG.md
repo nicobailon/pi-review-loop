@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-01-28
+
+### Changed
+
+- Custom focus text no longer requires quotes - `/review-start focus on error handling` now works
+
 ## [0.3.0] - 2026-01-28
 
 ### Added
