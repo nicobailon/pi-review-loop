@@ -243,9 +243,13 @@ The loop exits when:
 | Command | Description |
 |---------|-------------|
 | `/review-start` | Activate and send review prompt immediately |
+| `/review-start "focus on X"` | Start review with custom focus appended to prompt |
+| `/review-plan` | Activate and review plans/specs/PRDs (uses `double-check-plan` template) |
+| `/review-plan "focus on X"` | Review plan with custom focus appended to prompt |
 | `/review-exit` | Exit review mode |
 | `/review-max <n>` | Set max iterations (session only) |
 | `/review-auto [on\|off]` | Toggle auto-trigger from keywords (session only) |
+| `/review-auto "focus on X"` | Enable auto-trigger AND start review with custom focus |
 | `/review-status` | Show current state |
 
 ## Tool API
@@ -261,6 +265,9 @@ review_loop({ start: true })
 
 // Start with custom max iterations
 review_loop({ start: true, maxIterations: 5 })
+
+// Start with custom focus
+review_loop({ start: true, focus: "focus on error handling and edge cases" })
 
 // Stop review mode
 review_loop({ stop: true })
@@ -280,6 +287,7 @@ review_loop({ autoTrigger: false })
   "currentIteration": 2,
   "maxIterations": 7,
   "autoTrigger": false,
+  "focus": "focus on error handling",
   "message": "Review mode active: iteration 2/7"
 }
 ```

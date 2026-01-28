@@ -1,6 +1,6 @@
 {
   "name": "pi-review-loop",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Automated code review loop extension for pi coding agent",
   "scripts": {
     "postinstall": "node scripts/install.js",

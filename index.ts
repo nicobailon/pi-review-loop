@@ -6,6 +6,7 @@ export default function (pi: ExtensionAPI) {
   let settings: ReviewerLoopSettings = loadSettings();
   let reviewModeActive = false;
   let currentIteration = 0;
+  let customPromptSuffix = "";
 
   function updateStatus(ctx: ExtensionContext) {
     if (reviewModeActive) {
@@ -18,9 +19,25 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  function buildReviewPrompt(promptConfig: { type: "inline" | "file" | "template"; value: string }): string {
+    const basePrompt = getReviewPrompt(promptConfig);
+    if (customPromptSuffix) {
+      return `${basePrompt}\n\n**Additional focus:** ${customPromptSuffix}`;
+    }
+    return basePrompt;
+  }
+
+  function parseCustomText(args: string): string {
+    // Match quoted strings: "text" or 'text' (must use matching quotes)
+    const match = args.match(/^"(.+)"$/s) || args.match(/^'(.+)'$/s) ||
+                  args.match(/"(.+?)"/s) || args.match(/'(.+?)'/s);
+    return match ? match[1].trim() : "";
+  }
+
   function exitReviewMode(ctx: ExtensionContext, reason: string) {
     reviewModeActive = false;
     currentIteration = 0;
+    customPromptSuffix = "";
     updateStatus(ctx);
     ctx.ui.notify(`Review mode ended: ${reason}`, "info");
   }
@@ -103,19 +120,33 @@ export default function (pi: ExtensionAPI) {
     }
 
     updateStatus(ctx);
-    pi.sendUserMessage(getReviewPrompt(settings.reviewPromptConfig), {
+    pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig), {
       deliverAs: "followUp",
     });
   });
 
   pi.registerCommand("review-start", {
-    description: "Activate review loop and send review prompt immediately",
-    handler: async (_args, ctx) => {
+    description: "Activate review loop and send review prompt immediately. Optional: add custom focus with quotes.",
+    handler: async (args, ctx) => {
       if (reviewModeActive) {
         ctx.ui.notify("Review mode is already active", "info");
       } else {
+        customPromptSuffix = parseCustomText(args);
         enterReviewMode(ctx);
-        pi.sendUserMessage(getReviewPrompt(settings.reviewPromptConfig));
+        pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
+      }
+    },
+  });
+
+  pi.registerCommand("review-plan", {
+    description: "Activate review loop for plans/specs/PRDs. Optional: add custom focus with quotes.",
+    handler: async (args, ctx) => {
+      if (reviewModeActive) {
+        ctx.ui.notify("Review mode is already active", "info");
+      } else {
+        customPromptSuffix = parseCustomText(args);
+        enterReviewMode(ctx);
+        pi.sendUserMessage(buildReviewPrompt({ type: "template", value: "double-check-plan" }));
       }
     },
   });
@@ -162,17 +193,36 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("review-auto", {
-    description: "Toggle auto-trigger from keywords (off by default)",
+    description: "Toggle auto-trigger, or start review with custom focus: /review-auto \"focus on X\"",
     handler: async (args, ctx) => {
-      const arg = args.trim().toLowerCase();
-      if (arg === "on" || arg === "true" || arg === "1") {
+      const arg = args.trim();
+      const argLower = arg.toLowerCase();
+      
+      // Check for quoted custom text first
+      const customText = parseCustomText(arg);
+      if (customText) {
+        // Custom text provided: enable auto-trigger and start review with custom focus
         settings.autoTrigger = true;
-      } else if (arg === "off" || arg === "false" || arg === "0") {
+        customPromptSuffix = customText;
+        if (reviewModeActive) {
+          ctx.ui.notify(`Auto-trigger enabled, focus updated for next iteration`, "info");
+        } else {
+          enterReviewMode(ctx);
+          pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
+          ctx.ui.notify(`Auto-trigger enabled, review started with custom focus`, "info");
+        }
+        return;
+      }
+      
+      // Standard on/off/toggle behavior
+      if (argLower === "on" || argLower === "true" || argLower === "1") {
+        settings.autoTrigger = true;
+      } else if (argLower === "off" || argLower === "false" || argLower === "0") {
         settings.autoTrigger = false;
       } else if (arg === "") {
         settings.autoTrigger = !settings.autoTrigger;
       } else {
-        ctx.ui.notify("Usage: /review-auto [on|off]", "error");
+        ctx.ui.notify("Usage: /review-auto [on|off] or /review-auto \"custom focus\"", "error");
         return;
       }
       ctx.ui.notify(
@@ -208,6 +258,11 @@ export default function (pi: ExtensionAPI) {
           minimum: 1,
         })
       ),
+      focus: Type.Optional(
+        Type.String({
+          description: "Custom focus/instructions to append to the review prompt (e.g., \"focus on error handling\")",
+        })
+      ),
     }),
 
     async execute(_toolCallId, params, _onUpdate, ctx) {
@@ -225,6 +280,11 @@ export default function (pi: ExtensionAPI) {
         );
       }
 
+      // Update custom focus if provided
+      if (typeof params.focus === "string") {
+        customPromptSuffix = params.focus.trim();
+      }
+
       // Mode: start > stop > status
       if (params.start) {
         if (reviewModeActive) {
@@ -237,6 +297,7 @@ export default function (pi: ExtensionAPI) {
                   currentIteration,
                   maxIterations: settings.maxIterations,
                   autoTrigger: settings.autoTrigger,
+                  focus: customPromptSuffix || undefined,
                   message: "Review mode is already active",
                 }),
               },
@@ -245,7 +306,7 @@ export default function (pi: ExtensionAPI) {
         }
 
         enterReviewMode(ctx);
-        pi.sendUserMessage(getReviewPrompt(settings.reviewPromptConfig));
+        pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
 
         return {
           content: [
@@ -256,7 +317,10 @@ export default function (pi: ExtensionAPI) {
                 currentIteration,
                 maxIterations: settings.maxIterations,
                 autoTrigger: settings.autoTrigger,
-                message: "Review mode started. Review prompt sent.",
+                focus: customPromptSuffix || undefined,
+                message: customPromptSuffix
+                  ? `Review mode started with custom focus. Review prompt sent.`
+                  : "Review mode started. Review prompt sent.",
               }),
             },
           ],
@@ -309,6 +373,7 @@ export default function (pi: ExtensionAPI) {
               currentIteration,
               maxIterations: settings.maxIterations,
               autoTrigger: settings.autoTrigger,
+              focus: customPromptSuffix || undefined,
               message: reviewModeActive
                 ? `Review mode active: iteration ${currentIteration}/${settings.maxIterations}`
                 : "Review mode inactive",

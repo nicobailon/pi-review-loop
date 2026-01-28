@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-28
+
+### Added
+
+- `/review-plan` command to activate review loop with `double-check-plan` template for reviewing plans/specs/PRDs
+- Custom focus support: append instructions to review prompts with quoted text
+  - `/review-start "focus on error handling"`
+  - `/review-plan "check for security issues"`
+  - `/review-auto "focus on performance"`
+- `focus` parameter in `review_loop` tool for programmatic custom focus
+
 ## [0.2.1] - 2026-01-26
 
 ### Changed
