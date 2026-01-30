@@ -7,13 +7,15 @@ export default function (pi: ExtensionAPI) {
   let reviewModeActive = false;
   let currentIteration = 0;
   let customPromptSuffix = "";
+  let freshContext = settings.freshContext;
+  let reviewBoundaryCount = -1;
+  let boundaryNeedsCapture = false;
 
   function updateStatus(ctx: ExtensionContext) {
     if (reviewModeActive) {
-      ctx.ui.setStatus(
-        "review-loop",
-        `Review mode (${currentIteration}/${settings.maxIterations})`
-      );
+      const parts = [`Review mode (${currentIteration + 1}/${settings.maxIterations})`];
+      if (freshContext) parts.push("fresh");
+      ctx.ui.setStatus("review-loop", parts.join(" | "));
     } else {
       ctx.ui.setStatus("review-loop", undefined);
     }
@@ -30,12 +32,8 @@ export default function (pi: ExtensionAPI) {
   function parseCustomText(args: string): string {
     const trimmed = args.trim();
     if (!trimmed) return "";
-    
-    // Try quoted strings first: "text" or 'text'
-    const match = trimmed.match(/^"(.+)"$/s) || trimmed.match(/^'(.+)'$/s) ||
-                  trimmed.match(/"(.+?)"/s) || trimmed.match(/'(.+?)'/s);
-    
-    // If no quotes found, use the entire text as focus
+
+    const match = trimmed.match(/^"(.+)"$/s) || trimmed.match(/^'(.+)'$/s);
     return match ? match[1].trim() : trimmed;
   }
 
@@ -43,6 +41,8 @@ export default function (pi: ExtensionAPI) {
     reviewModeActive = false;
     currentIteration = 0;
     customPromptSuffix = "";
+    reviewBoundaryCount = -1;
+    boundaryNeedsCapture = false;
     updateStatus(ctx);
     ctx.ui.notify(`Review mode ended: ${reason}`, "info");
   }
@@ -50,12 +50,15 @@ export default function (pi: ExtensionAPI) {
   function enterReviewMode(ctx: ExtensionContext) {
     reviewModeActive = true;
     currentIteration = 0;
+    reviewBoundaryCount = -1;
+    boundaryNeedsCapture = false;
     updateStatus(ctx);
     ctx.ui.notify("Review mode activated", "info");
   }
 
   pi.on("session_start", async () => {
     settings = loadSettings();
+    freshContext = settings.freshContext;
   });
 
   pi.on("input", async (event, ctx) => {
@@ -84,6 +87,54 @@ export default function (pi: ExtensionAPI) {
     if (isTrigger) {
       enterReviewMode(ctx);
     }
+  });
+
+  pi.on("context", async (event) => {
+    if (!reviewModeActive || !freshContext) return;
+
+    const messages = event.messages;
+    if (messages.length === 0) return;
+
+    if (boundaryNeedsCapture) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "user") {
+          reviewBoundaryCount = i;
+          break;
+        }
+      }
+      boundaryNeedsCapture = false;
+    }
+
+    if (currentIteration === 0) return;
+    if (reviewBoundaryCount < 0) return;
+
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        lastUserIdx = i;
+        break;
+      }
+    }
+    if (lastUserIdx < 0) return;
+    if (reviewBoundaryCount >= lastUserIdx) return;
+
+    const preReview = messages.slice(0, reviewBoundaryCount);
+    const currentIterationMsgs = messages.slice(lastUserIdx);
+
+    const assembled: typeof messages = [...preReview];
+
+    assembled.push({
+      role: "user",
+      content: [{
+        type: "text",
+        text: `[Review pass ${currentIteration + 1}. ${currentIteration} prior pass(es) completed, fixes applied to code. Re-read any relevant plan, spec, PRD, or progress documents before reviewing. Review with fresh eyes.]`,
+      }],
+      timestamp: Date.now(),
+    } as any);
+
+    assembled.push(...currentIterationMsgs);
+
+    return { messages: assembled };
   });
 
   pi.on("agent_end", async (event, ctx) => {
@@ -119,11 +170,12 @@ export default function (pi: ExtensionAPI) {
     }
 
     currentIteration++;
-    if (currentIteration > settings.maxIterations) {
+    if (currentIteration >= settings.maxIterations) {
       exitReviewMode(ctx, `max iterations (${settings.maxIterations}) reached`);
       return;
     }
 
+    if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
     updateStatus(ctx);
     pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig), {
       deliverAs: "followUp",
@@ -131,26 +183,28 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("review-start", {
-    description: "Activate review loop and send review prompt. Optional: add custom focus text.",
+    description: "Activate review loop with optional custom focus text.",
     handler: async (args, ctx) => {
       if (reviewModeActive) {
         ctx.ui.notify("Review mode is already active", "info");
       } else {
         customPromptSuffix = parseCustomText(args);
         enterReviewMode(ctx);
+        if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
         pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
       }
     },
   });
 
   pi.registerCommand("review-plan", {
-    description: "Activate review loop for plans/specs/PRDs. Optional: add custom focus text.",
+    description: "Activate review loop for plans/specs/PRDs with optional custom focus text.",
     handler: async (args, ctx) => {
       if (reviewModeActive) {
         ctx.ui.notify("Review mode is already active", "info");
       } else {
         customPromptSuffix = parseCustomText(args);
         enterReviewMode(ctx);
+        if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
         pi.sendUserMessage(buildReviewPrompt({ type: "template", value: "double-check-plan" }));
       }
     },
@@ -184,13 +238,12 @@ export default function (pi: ExtensionAPI) {
     description: "Show review mode status",
     handler: async (_args, ctx) => {
       if (reviewModeActive) {
-        ctx.ui.notify(
-          `Review mode active: iteration ${currentIteration}/${settings.maxIterations}`,
-          "info"
-        );
+        const parts = [`iteration ${currentIteration + 1}/${settings.maxIterations}`];
+        if (freshContext) parts.push("fresh context");
+        ctx.ui.notify(`Review mode active: ${parts.join(", ")}`, "info");
       } else {
         ctx.ui.notify(
-          `Review mode inactive (max: ${settings.maxIterations}, auto-trigger: ${settings.autoTrigger ? "on" : "off"})`,
+          `Review mode inactive (max: ${settings.maxIterations}, auto-trigger: ${settings.autoTrigger ? "on" : "off"}, fresh: ${freshContext ? "on" : "off"})`,
           "info"
         );
       }
@@ -202,8 +255,7 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const arg = args.trim();
       const argLower = arg.toLowerCase();
-      
-      // Check for standard on/off/toggle keywords first
+
       if (argLower === "on" || argLower === "true" || argLower === "1") {
         settings.autoTrigger = true;
         ctx.ui.notify(`Auto-trigger enabled`, "info");
@@ -222,18 +274,33 @@ export default function (pi: ExtensionAPI) {
         );
         return;
       }
-      
-      // Anything else is treated as custom focus text
-      const customText = parseCustomText(arg);
+
       settings.autoTrigger = true;
-      customPromptSuffix = customText;
+      customPromptSuffix = parseCustomText(arg);
       if (reviewModeActive) {
         ctx.ui.notify(`Auto-trigger enabled, focus updated for next iteration`, "info");
       } else {
         enterReviewMode(ctx);
+        if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
         pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
         ctx.ui.notify(`Auto-trigger enabled, review started with custom focus`, "info");
       }
+    },
+  });
+
+  pi.registerCommand("review-fresh", {
+    description: "Toggle fresh context mode for review iterations",
+    handler: async (args, ctx) => {
+      const arg = args.trim().toLowerCase();
+
+      if (arg === "on" || arg === "true" || arg === "1") {
+        freshContext = true;
+      } else if (arg === "off" || arg === "false" || arg === "0") {
+        freshContext = false;
+      } else {
+        freshContext = !freshContext;
+      }
+      ctx.ui.notify(`Fresh context ${freshContext ? "enabled" : "disabled"}`, "info");
     },
   });
 
@@ -268,15 +335,18 @@ export default function (pi: ExtensionAPI) {
           description: "Custom focus/instructions to append to the review prompt (e.g., \"focus on error handling\")",
         })
       ),
+      freshContext: Type.Optional(
+        Type.Boolean({
+          description: "Enable/disable fresh context mode (strips prior review iterations from context)",
+        })
+      ),
     }),
 
     async execute(_toolCallId, params, _onUpdate, ctx) {
-      // Update maxIterations if provided
       if (typeof params.maxIterations === "number" && params.maxIterations >= 1) {
         settings.maxIterations = params.maxIterations;
       }
 
-      // Update autoTrigger if provided
       if (typeof params.autoTrigger === "boolean") {
         settings.autoTrigger = params.autoTrigger;
         ctx.ui.notify(
@@ -285,12 +355,18 @@ export default function (pi: ExtensionAPI) {
         );
       }
 
-      // Update custom focus if provided
       if (typeof params.focus === "string") {
         customPromptSuffix = params.focus.trim();
       }
 
-      // Mode: start > stop > status
+      if (typeof params.freshContext === "boolean") {
+        freshContext = params.freshContext;
+        ctx.ui.notify(
+          `Fresh context ${freshContext ? "enabled" : "disabled"}`,
+          "info"
+        );
+      }
+
       if (params.start) {
         if (reviewModeActive) {
           return {
@@ -302,6 +378,7 @@ export default function (pi: ExtensionAPI) {
                   currentIteration,
                   maxIterations: settings.maxIterations,
                   autoTrigger: settings.autoTrigger,
+                  freshContext,
                   focus: customPromptSuffix || undefined,
                   message: "Review mode is already active",
                 }),
@@ -311,6 +388,7 @@ export default function (pi: ExtensionAPI) {
         }
 
         enterReviewMode(ctx);
+        if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
         pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
 
         return {
@@ -322,6 +400,7 @@ export default function (pi: ExtensionAPI) {
                 currentIteration,
                 maxIterations: settings.maxIterations,
                 autoTrigger: settings.autoTrigger,
+                freshContext,
                 focus: customPromptSuffix || undefined,
                 message: customPromptSuffix
                   ? `Review mode started with custom focus. Review prompt sent.`
@@ -343,6 +422,7 @@ export default function (pi: ExtensionAPI) {
                   currentIteration: 0,
                   maxIterations: settings.maxIterations,
                   autoTrigger: settings.autoTrigger,
+                  freshContext,
                   message: "Review mode is not active",
                 }),
               },
@@ -361,6 +441,7 @@ export default function (pi: ExtensionAPI) {
                 currentIteration: 0,
                 maxIterations: settings.maxIterations,
                 autoTrigger: settings.autoTrigger,
+                freshContext,
                 message: "Review mode stopped",
               }),
             },
@@ -368,7 +449,6 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
-      // Default: status
       return {
         content: [
           {
@@ -378,9 +458,10 @@ export default function (pi: ExtensionAPI) {
               currentIteration,
               maxIterations: settings.maxIterations,
               autoTrigger: settings.autoTrigger,
+              freshContext,
               focus: customPromptSuffix || undefined,
               message: reviewModeActive
-                ? `Review mode active: iteration ${currentIteration}/${settings.maxIterations}`
+                ? `Review mode active: iteration ${currentIteration + 1}/${settings.maxIterations}`
                 : "Review mode inactive",
             }),
           },

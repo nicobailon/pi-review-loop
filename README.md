@@ -30,13 +30,15 @@ Agents make mistakes. They miss edge cases, introduce typos, forget error handli
 
 **Smart Exit Detection** - Won't be fooled by "Fixed 3 issues. No further issues found." Detects when issues were fixed and keeps looping.
 
+**Fresh Context** - Optional mode that strips prior review iterations from context each pass. The agent is prompted to re-read any relevant plan, spec, or PRD documents, so it truly reviews with fresh eyes instead of through the lens of its previous passes.
+
 **Fully Configurable** - Every pattern is customizable. Change what triggers the loop, what exits it, and what prompt gets sent. Extend the defaults or replace them entirely.
 
 ## Typical Workflow
 
 The loop shines in two scenarios:
 
-**Before implementing** — You've got a plan doc and want to sanity-check it against the actual codebase. Run `/review-start` and let the agent compare the plan to what exists. It'll catch things like outdated assumptions, conflicting patterns, or unnecessary complexity. The funny thing is, it rarely finds everything on the first pass. Second pass catches different issues. Third pass, more still. That's the whole point of the loop.
+**Before implementing** — You've got a plan doc and want to sanity-check it against the actual codebase. Run `/review-plan` and let the agent compare the plan to what exists. It'll catch things like outdated assumptions, conflicting patterns, or unnecessary complexity. The funny thing is, it rarely finds everything on the first pass. Second pass catches different issues. Third pass, more still. That's the whole point of the loop.
 
 **After implementing** — You just finished building a feature and want to catch bugs before calling it done. Run `/review-start` and the agent reviews its own work with fresh eyes. Typos, missed edge cases, forgotten error handling — it finds stuff you'd miss staring at the same code. Again, multiple passes tend to surface different issues each time.
 
@@ -66,7 +68,7 @@ The package includes two prompt templates that are automatically installed to `~
 These prompts are designed to work with the review loop:
 - They instruct the agent to respond with "No issues found." when done (triggering exit)
 - They tell the agent to end with "Fixed [N] issue(s). Ready for another review." when issues are fixed (continuing the loop)
-- They include the "fresh eyes" phrase that triggers the loop when `autoTrigger` is enabled
+- `double-check.md` includes the "fresh eyes" phrase that triggers the loop when `autoTrigger` is enabled
 
 **Recommended workflow:** Use `/review-start` to activate review mode, which sends the review prompt automatically. Alternatively, enable auto-trigger (`/review-auto on`) and the `/double-check` template will activate the loop.
 
@@ -140,6 +142,47 @@ Or just type something else. Any non-trigger input exits review mode.
 
 Changes max iterations for current session.
 
+## Fresh Context
+
+By default, each review iteration sees the full conversation history including all prior iterations. This means by pass 3, the agent is reviewing code through the lens of its two prior reviews -- not truly fresh eyes. Fresh context mode fixes this.
+
+When enabled, prior review iterations are stripped from context before each LLM call. The agent only sees: the original pre-review conversation, a brief pass note instructing it to re-read any relevant plan/spec/PRD documents, and the current iteration's review prompt and tool usage.
+
+### Enable Fresh Context
+
+Per-session:
+```
+/review-fresh on
+```
+
+Or via the tool:
+```typescript
+review_loop({ start: true, freshContext: true })
+```
+
+Or permanently in settings:
+```json
+{
+  "reviewerLoop": {
+    "freshContext": true
+  }
+}
+```
+
+### How It Works
+
+```
+iteration 1: [pre-review context] [review prompt]                     ← full context
+iteration 2: [pre-review context] [pass note] [review prompt]         ← iter 1 stripped
+iteration 3: [pre-review context] [pass note] [review prompt]         ← iters 1-2 stripped
+```
+
+The pre-review context is everything from before review mode was activated. Within a review iteration, multi-turn tool usage (read, bash, edit) is preserved -- only completed prior iterations are stripped.
+
+The pass note tells the agent which pass it's on and instructs it to re-read any relevant plan, spec, PRD, or progress documents before reviewing. This way the agent re-grounds itself in the source of truth each pass using its own tool calls rather than programmatic injection.
+
+If auto-compaction fires during a review loop (large sessions), the fresh context handler gracefully degrades to full context for that session.
+
 ## Configuration
 
 Configure in `~/.pi/agent/settings.json`. Works out of the box, but everything is customizable:
@@ -149,6 +192,7 @@ Configure in `~/.pi/agent/settings.json`. Works out of the box, but everything i
   "reviewerLoop": {
     "maxIterations": 7,
     "autoTrigger": true,
+    "freshContext": true,
     "reviewPrompt": "template:double-check",
     "triggerPatterns": {
       "mode": "extend",
@@ -172,6 +216,7 @@ Configure in `~/.pi/agent/settings.json`. Works out of the box, but everything i
 |--------|-------------|
 | `maxIterations` | Max review prompts before auto-exit (default: 7) |
 | `autoTrigger` | Enable keyword-based auto-trigger (default: false) |
+| `freshContext` | Strip prior iterations from context each pass (default: false) |
 | `reviewPrompt` | The prompt to send each iteration |
 | `triggerPatterns` | What activates review mode (requires autoTrigger: true) |
 | `exitPatterns` | What indicates "review complete" |
@@ -250,6 +295,7 @@ The loop exits when:
 | `/review-max <n>` | Set max iterations (session only) |
 | `/review-auto [on\|off]` | Toggle auto-trigger from keywords (session only) |
 | `/review-auto <focus>` | Enable auto-trigger AND start review with custom focus |
+| `/review-fresh [on\|off]` | Toggle fresh context mode (session only) |
 | `/review-status` | Show current state |
 
 ## Tool API
@@ -278,15 +324,19 @@ review_loop({ maxIterations: 10 })
 // Enable/disable auto-trigger
 review_loop({ autoTrigger: true })
 review_loop({ autoTrigger: false })
+
+// Enable fresh context
+review_loop({ start: true, freshContext: true })
 ```
 
 **Returns:**
 ```json
 {
   "active": true,
-  "currentIteration": 2,
+  "currentIteration": 1,
   "maxIterations": 7,
   "autoTrigger": false,
+  "freshContext": true,
   "focus": "focus on error handling",
   "message": "Review mode active: iteration 2/7"
 }
@@ -316,6 +366,7 @@ otherwise → exit (max reached)
 - `session_start` - Reload settings
 - `input` - Detect triggers (if autoTrigger enabled), handle interrupts
 - `before_agent_start` - Check expanded prompts for triggers (if autoTrigger enabled)
+- `context` - Strip prior iterations and inject pass note (if freshContext enabled)
 - `agent_end` - Analyze response, decide to loop or exit
 
 ## Limitations

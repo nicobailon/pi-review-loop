@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-29
+
+### Added
+
+- **Fresh context mode**: Each review iteration gets a clean, unbiased view of the code. When enabled, prior review iterations are stripped from context and a pass note prompts the agent to re-read any relevant plan/spec/PRD documents. Enable with `/review-fresh on`, the `freshContext` tool parameter, or `freshContext: true` in settings.
+- `freshContext` parameter in `review_loop` tool
+- `/review-fresh [on|off]` command to toggle fresh context per-session
+- `freshContext` setting for persistent configuration
+
+### Changed
+
+- Updated bundled `double-check.md` prompt: stronger review guidance ("question everything", "fight entropy"), explicit ultrathink instruction, anti-rubber-stamp push
+- Updated bundled `double-check-plan.md` prompt: streamlined to focus on elegant implementation given architecture and goals
+- Updated `DEFAULT_REVIEW_PROMPT` in settings.ts to match the new `double-check.md` content
+- Revised response format in all prompts: agent must describe what it examined before concluding "No issues found" instead of giving a terse binary verdict, reducing premature loop exits
+
+### Fixed
+
+- **Off-by-one in max iterations**: `maxIterations: 7` produced 8 review passes instead of 7
+- **0-indexed iteration display**: Status bar showed `(0/7)` for the first pass; now shows `(1/7)`
+- **Stateful regex in user-configured patterns**: Patterns with the `g` flag caused `.test()` to alternate between true/false on successive calls; `g` flag is now stripped since it's meaningless for match detection
+- README incorrectly claimed both prompt templates include the auto-trigger phrase; only `double-check.md` matches the trigger pattern
+
 ## [0.3.1] - 2026-01-28
 
 ### Changed
