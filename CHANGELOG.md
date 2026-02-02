@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-02-02
+
+### Fixed
+- `/review-plan` used `double-check-plan.md` only on the first iteration; subsequent iterations fell back to the default `double-check.md` prompt because `agent_end` always read from `settings.reviewPromptConfig`
+- Session state (review mode, iteration count, boundary tracking) not reset on `session_start`, causing stale review state to carry over between sessions
+- Duplicated inline type for `ReviewPromptConfig` in index.ts; now imports the canonical interface from settings.ts
+
 ## [0.4.1] - 2026-02-01
 
 ### Fixed

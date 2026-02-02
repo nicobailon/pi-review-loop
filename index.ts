@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { loadSettings, getReviewPrompt, type ReviewerLoopSettings } from "./settings.js";
+import { loadSettings, getReviewPrompt, type ReviewerLoopSettings, type ReviewPromptConfig } from "./settings.js";
 
 export default function (pi: ExtensionAPI) {
   let settings: ReviewerLoopSettings = loadSettings();
@@ -10,6 +10,7 @@ export default function (pi: ExtensionAPI) {
   let freshContext = settings.freshContext;
   let reviewBoundaryCount = -1;
   let boundaryNeedsCapture = false;
+  let activePromptConfig: ReviewPromptConfig = settings.reviewPromptConfig;
 
   function updateStatus(ctx: ExtensionContext) {
     if (reviewModeActive) {
@@ -21,7 +22,7 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
-  function buildReviewPrompt(promptConfig: { type: "inline" | "file" | "template"; value: string }): string {
+  function buildReviewPrompt(promptConfig: ReviewPromptConfig): string {
     const basePrompt = getReviewPrompt(promptConfig);
     if (customPromptSuffix) {
       return `${basePrompt}\n\n**Additional focus:** ${customPromptSuffix}`;
@@ -43,6 +44,7 @@ export default function (pi: ExtensionAPI) {
     customPromptSuffix = "";
     reviewBoundaryCount = -1;
     boundaryNeedsCapture = false;
+    activePromptConfig = settings.reviewPromptConfig;
     updateStatus(ctx);
     ctx.ui.notify(`Review mode ended: ${reason}`, "info");
   }
@@ -59,6 +61,12 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async () => {
     settings = loadSettings();
     freshContext = settings.freshContext;
+    activePromptConfig = settings.reviewPromptConfig;
+    reviewModeActive = false;
+    currentIteration = 0;
+    customPromptSuffix = "";
+    reviewBoundaryCount = -1;
+    boundaryNeedsCapture = false;
   });
 
   pi.on("input", async (event, ctx) => {
@@ -177,7 +185,7 @@ export default function (pi: ExtensionAPI) {
 
     if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
     updateStatus(ctx);
-    pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig), {
+    pi.sendUserMessage(buildReviewPrompt(activePromptConfig), {
       deliverAs: "followUp",
     });
   });
@@ -189,9 +197,10 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify("Review mode is already active", "info");
       } else {
         customPromptSuffix = parseCustomText(args);
+        activePromptConfig = settings.reviewPromptConfig;
         enterReviewMode(ctx);
         if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
-        pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
+        pi.sendUserMessage(buildReviewPrompt(activePromptConfig));
       }
     },
   });
@@ -203,9 +212,10 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify("Review mode is already active", "info");
       } else {
         customPromptSuffix = parseCustomText(args);
+        activePromptConfig = { type: "template", value: "double-check-plan" };
         enterReviewMode(ctx);
         if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
-        pi.sendUserMessage(buildReviewPrompt({ type: "template", value: "double-check-plan" }));
+        pi.sendUserMessage(buildReviewPrompt(activePromptConfig));
       }
     },
   });
@@ -280,9 +290,10 @@ export default function (pi: ExtensionAPI) {
       if (reviewModeActive) {
         ctx.ui.notify(`Auto-trigger enabled, focus updated for next iteration`, "info");
       } else {
+        activePromptConfig = settings.reviewPromptConfig;
         enterReviewMode(ctx);
         if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
-        pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
+        pi.sendUserMessage(buildReviewPrompt(activePromptConfig));
         ctx.ui.notify(`Auto-trigger enabled, review started with custom focus`, "info");
       }
     },
@@ -387,9 +398,10 @@ export default function (pi: ExtensionAPI) {
           };
         }
 
+        activePromptConfig = settings.reviewPromptConfig;
         enterReviewMode(ctx);
         if (freshContext && reviewBoundaryCount < 0) boundaryNeedsCapture = true;
-        pi.sendUserMessage(buildReviewPrompt(settings.reviewPromptConfig));
+        pi.sendUserMessage(buildReviewPrompt(activePromptConfig));
 
         return {
           content: [
