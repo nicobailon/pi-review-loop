@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-02-01
+
+### Fixed
+- Adapt execute signature to pi v0.51.0: insert signal as 3rd parameter
+
 ## [0.4.0] - 2026-01-29
 
 ### Added
