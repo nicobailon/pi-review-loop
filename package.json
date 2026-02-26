@@ -2,15 +2,10 @@
   "name": "pi-review-loop",
   "version": "0.4.2",
   "description": "Automated code review loop extension for pi coding agent",
-  "scripts": {
-    "postinstall": "node scripts/install.js",
-    "preuninstall": "node scripts/uninstall.js"
-  },
   "files": [
     "index.ts",
     "settings.ts",
     "review-loop.png",
-    "scripts/",
     "prompts/"
   ],
   "keywords": [
@@ -35,6 +30,9 @@
   "pi": {
     "extensions": [
       "./index.ts"
+    ],
+    "prompts": [
+      "./prompts"
     ]
   }
 }

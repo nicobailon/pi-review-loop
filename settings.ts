@@ -1,8 +1,11 @@
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 
 export const SETTINGS_PATH = join(homedir(), ".pi", "agent", "settings.json");
+const PACKAGE_DIR = dirname(fileURLToPath(import.meta.url));
+const PACKAGE_PROMPTS_DIR = join(PACKAGE_DIR, "prompts");
 
 export const DEFAULT_MAX_ITERATIONS = 7;
 
@@ -20,6 +23,16 @@ You MUST read all relevant code and think deeply (ultrathink!!!) first before yo
 
 **Response format:**
 - If you find ANY issues: fix them, then list what you fixed. Do NOT say "no issues found" - instead end with "Fixed [N] issue(s). Ready for another review."
+- If you find ZERO issues: describe what you examined and verified, then conclude with "No issues found."
+
+Do not rush to a verdict. Read all relevant code first, trace through edge cases, and only then decide. I am pushing you to do a genuinely thorough review and not just lazily rubber-stamp it. Make sure you think deeply, then ultrathink some more.`;
+
+export const DEFAULT_PLAN_REVIEW_PROMPT = `Great, now I want you to carefully read over the plan/spec and compare against the codebase with "fresh eyes," looking super carefully for any obvious bugs, errors, problems, issues, confusion, etc. Think through how best to implement this elegantly given our architecture and goals. Also keep in mind that this is not an MVP - so don't skip anything.
+
+**CRITICAL: This reviews and fixes the PLAN DOCUMENT ONLY. Do NOT edit, create, or modify any source code files. Only the plan/spec file itself should be edited. If you find issues in the plan, fix them in the plan. Do NOT implement the plan or write any code.**
+
+**Response format:**
+- If you find ANY issues: fix them in the plan, then list what you fixed. Do NOT say "no issues found" - instead end with "Fixed [N] issue(s). Ready for another review."
 - If you find ZERO issues: describe what you examined and verified, then conclude with "No issues found."
 
 Do not rush to a verdict. Read all relevant code first, trace through edge cases, and only then decide. I am pushing you to do a genuinely thorough review and not just lazily rubber-stamp it. Make sure you think deeply, then ultrathink some more.`;
@@ -163,6 +176,13 @@ function resolvePath(value: string): string {
   return value;
 }
 
+function getTemplateDefaultPrompt(templateName: string): string {
+  if (templateName === "double-check-plan") {
+    return DEFAULT_PLAN_REVIEW_PROMPT;
+  }
+  return DEFAULT_REVIEW_PROMPT;
+}
+
 export function getReviewPrompt(config: ReviewPromptConfig): string {
   switch (config.type) {
     case "inline":
@@ -179,24 +199,25 @@ export function getReviewPrompt(config: ReviewPromptConfig): string {
     }
 
     case "template": {
-      const templatePath = join(
-        homedir(),
-        ".pi",
-        "agent",
-        "prompts",
-        `${config.value}.md`
-      );
-      try {
-        if (!existsSync(templatePath)) {
-          return DEFAULT_REVIEW_PROMPT;
+      const templateName = config.value.trim();
+      const templatePaths = [
+        join(homedir(), ".pi", "agent", "prompts", `${templateName}.md`),
+        join(PACKAGE_PROMPTS_DIR, `${templateName}.md`),
+      ];
+
+      for (const templatePath of templatePaths) {
+        try {
+          if (!existsSync(templatePath)) continue;
+          let content = readFileSync(templatePath, "utf-8");
+          content = stripFrontmatter(content);
+          content = content.replace(/\$@/g, "").trim();
+          if (content) return content;
+        } catch {
+          // Try next location
         }
-        let content = readFileSync(templatePath, "utf-8");
-        content = stripFrontmatter(content);
-        content = content.replace(/\$@/g, "").trim();
-        return content || DEFAULT_REVIEW_PROMPT;
-      } catch {
-        return DEFAULT_REVIEW_PROMPT;
       }
+
+      return getTemplateDefaultPrompt(templateName);
     }
   }
 }

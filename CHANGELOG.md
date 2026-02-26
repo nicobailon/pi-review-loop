@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+- Removed npm lifecycle side-effects (`postinstall`/`preuninstall`) that copied files into `~/.pi/agent/`
+- Prompt templates are now loaded from user prompts first (`~/.pi/agent/prompts/`), with fallback to bundled package prompts (`prompts/`)
+- Added `pi.prompts` manifest entry so packaged prompt templates are exposed without local file copying
+
 ## [0.4.2] - 2026-02-02
 
 ### Fixed
