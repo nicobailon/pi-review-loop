@@ -58,7 +58,7 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.notify("Review mode activated", "info");
   }
 
-  pi.on("session_start", async () => {
+  pi.on("session_start", async (_event, ctx) => {
     settings = loadSettings();
     freshContext = settings.freshContext;
     activePromptConfig = settings.reviewPromptConfig;
@@ -67,6 +67,7 @@ export default function (pi: ExtensionAPI) {
     customPromptSuffix = "";
     reviewBoundaryCount = -1;
     boundaryNeedsCapture = false;
+    if (ctx.hasUI) updateStatus(ctx);
   });
 
   pi.on("input", async (event, ctx) => {
@@ -319,6 +320,7 @@ export default function (pi: ExtensionAPI) {
     name: "review_loop",
     description:
       "Control the automated code review loop. Start/stop review mode, toggle auto-trigger, or check status. When started, the loop repeatedly prompts for code review until 'No issues found' or max iterations reached.",
+    promptSnippet: "Start, stop, or inspect the automated review loop state",
     parameters: Type.Object({
       start: Type.Optional(
         Type.Boolean({

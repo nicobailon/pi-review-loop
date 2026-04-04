@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-04-04
+
+### Changed
+- Added `promptSnippet` metadata to the `review_loop` tool so it stays visible in pi's default `Available tools` prompt section on pi `>=0.59.0`
+- `session_start` now refreshes footer status explicitly after state reset to avoid stale status text across reload/new/resume/fork transitions
+
 ## [0.4.2] - 2026-02-02
 
 ### Fixed
