@@ -58,7 +58,7 @@ Review mode (2/7)
 
 ## Prompt Templates
 
-The package includes two prompt templates that are automatically installed to `~/.pi/agent/prompts/` (if they don't already exist):
+The package includes two bundled prompt templates (no files are copied into `~/.pi/agent/`):
 
 | Template | Command | Description |
 |----------|---------|-------------|
@@ -74,11 +74,7 @@ These prompts are designed to work with the review loop:
 
 You can customize or replace these prompts, change trigger patterns, or use your own entirely. See [Configuration](#configuration). The agent can also start/stop the loop on demand via the `review_loop` tool. See [Tool API](#tool-api).
 
-**Manual installation** (if cloning instead of npm):
-
-```bash
-cp ~/.pi/agent/extensions/pi-review-loop/prompts/*.md ~/.pi/agent/prompts/
-```
+If you prefer editable local prompt files, copy them manually from `prompts/` into `~/.pi/agent/prompts/`.
 
 ## Quick Start
 
@@ -371,7 +367,7 @@ otherwise → exit (max reached)
 
 ## Limitations
 
-- **User templates only** - `template:name` loads from `~/.pi/agent/prompts/`, not project templates
+- **Template scope** - `template:name` loads from `~/.pi/agent/prompts/` first, then falls back to this package's bundled templates (`prompts/`), not project templates
 - **Session-scoped settings** - `/review-max` and `/review-auto` don't persist across sessions (use settings.json for persistence)
 - **Pattern failures are silent** - Invalid regex patterns are skipped without error
 
@@ -381,9 +377,6 @@ otherwise → exit (max reached)
 pi-review-loop/
 ├── index.ts           # Extension entry, event handlers, commands
 ├── settings.ts        # Configuration loading, pattern parsing, defaults
-├── scripts/
-│   ├── install.js     # npm postinstall - copies extension + prompts
-│   └── uninstall.js   # npm preuninstall - removes extension
 ├── prompts/
 │   ├── double-check.md       # Review code template
 │   └── double-check-plan.md  # Review plan template
