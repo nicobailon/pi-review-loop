@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-04-14
+
 ### Changed
 - Removed npm lifecycle side-effects (`postinstall`/`preuninstall`) that copied files into `~/.pi/agent/`
 - Prompt templates are now loaded from user prompts first (`~/.pi/agent/prompts/`), with fallback to bundled package prompts (`prompts/`)
